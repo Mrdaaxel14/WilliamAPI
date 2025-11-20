@@ -1,0 +1,6 @@
+@WilliamAPI_HostAddress = http://localhost:5185
+
+GET {{WilliamAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
