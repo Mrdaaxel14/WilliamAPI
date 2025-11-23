@@ -2,16 +2,16 @@
 
 namespace WilliamAPI.Models
 {
-    public class PedidoDetalle
+    public class CompraDetalle
     {
-        public int IdPedidoDetalle { get; set; }
-        public int IdPedido { get; set; }
+        public int IdCompraDetalle { get; set; }
+        public int IdCompra { get; set; }
         public int IdProducto { get; set; }
         public int Cantidad { get; set; }
-        public decimal PrecioUnitario { get; set; }
+        public decimal CostoUnitario { get; set; }
 
         [JsonIgnore]
-        public Pedido? Pedido { get; set; }
+        public Compra? Compra { get; set; }
 
         public Producto? Producto { get; set; }
     }

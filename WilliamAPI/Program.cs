@@ -2,8 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using WilliamAPI.Services;
+using System.Text.Json;
 using WilliamAPI.Data;
+using WilliamAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(opt =>
     {
         opt.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        opt.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -64,7 +66,9 @@ builder.Services.AddCors(opt =>
 {
     opt.AddPolicy(corsName, policy =>
     {
-        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
@@ -89,6 +93,7 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+
 
 var app = builder.Build();
 

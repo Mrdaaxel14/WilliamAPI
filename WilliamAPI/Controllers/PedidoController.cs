@@ -16,8 +16,8 @@ namespace WilliamAPI.Controllers
 
         private int GetUserId()
         {
-            var idClaim = User.FindFirst("id")?.Value;
-            return idClaim != null ? int.Parse(idClaim) : 0;
+            var idClaim = User.FindFirst("id")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            return int.TryParse(idClaim, out var id) ? id : 0;
         }
 
         // POST api/pedido/crear  (Cliente)
@@ -35,18 +35,24 @@ namespace WilliamAPI.Controllers
             if (carrito == null || !carrito.Detalles.Any())
                 return BadRequest(new { mensaje = "Carrito vacío" });
 
+            var estadoPedido = await _db.EstadosPedido.AsNoTracking().FirstOrDefaultAsync(e => e.Estado == "Pendiente");
+            var estadoPago = await _db.EstadosPago.AsNoTracking().FirstOrDefaultAsync(e => e.Estado == "Pendiente");
+
             var pedido = new Pedido
             {
                 IdUsuario = idUsuario,
                 Fecha = DateTime.UtcNow,
                 Total = 0m,
-                Detalles = new List<PedidoDetalle>()
+                Detalles = new List<PedidoDetalle>(),
+                IdEstadoPedido = estadoPedido?.IdEstadoPedido,
+                IdEstadoPago = estadoPago?.IdEstadoPago
             };
 
             decimal total = 0m;
             foreach (var det in carrito.Detalles)
             {
-                var producto = det.Producto!;
+                if (det.Producto == null) continue;
+                var producto = det.Producto;
                 var precio = producto.Precio;
                 var subtotal = det.Cantidad * precio;
                 total += subtotal;
@@ -92,7 +98,7 @@ namespace WilliamAPI.Controllers
                 Detalles = p.Detalles.Select(d => new
                 {
                     d.IdPedidoDetalle,
-                    Producto = new { d.Producto!.IdProducto, d.Producto!.Descripcion, d.Producto!.Precio, d.Producto!.Marca },
+                    Producto = d.Producto == null ? null : new { d.Producto.IdProducto, d.Producto.Descripcion, d.Producto.Precio, d.Producto.Marca },
                     d.Cantidad,
                     d.PrecioUnitario
                 })
@@ -106,7 +112,11 @@ namespace WilliamAPI.Controllers
         [HttpGet("todos")]
         public async Task<IActionResult> Todos()
         {
-            var pedidos = await _db.Pedidos.Include(p => p.Usuario).Include(p => p.Detalles).ThenInclude(d => d.Producto).ToListAsync();
+            var pedidos = await _db.Pedidos
+                .Include(p => p.Usuario)
+                .Include(p => p.Detalles)
+                    .ThenInclude(d => d.Producto)
+                .ToListAsync();
 
             var result = pedidos.Select(p => new
             {
@@ -117,7 +127,7 @@ namespace WilliamAPI.Controllers
                 Detalles = p.Detalles.Select(d => new
                 {
                     d.IdPedidoDetalle,
-                    Producto = new { d.Producto!.IdProducto, d.Producto!.Descripcion, d.Producto!.Precio },
+                    Producto = d.Producto == null ? null : new { d.Producto.IdProducto, d.Producto.Descripcion, d.Producto.Precio },
                     d.Cantidad,
                     d.PrecioUnitario
                 })

@@ -1,4 +1,4 @@
-﻿using WilliamAPI.Models;
+﻿using System.Text.Json.Serialization;
 
 namespace WilliamAPI.Models
 {
@@ -8,8 +8,17 @@ namespace WilliamAPI.Models
         public int IdUsuario { get; set; }
         public DateTime Fecha { get; set; } = DateTime.UtcNow;
         public decimal Total { get; set; }
+        public int? IdMetodoPago { get; set; }
+        public int? IdEstadoPedido { get; set; }
+        public int? IdEstadoPago { get; set; }
 
-        public virtual Usuario? Usuario { get; set; }
-        public virtual ICollection<PedidoDetalle> Detalles { get; set; } = new List<PedidoDetalle>();
+        [JsonIgnore]
+        public Usuario? Usuario { get; set; }
+
+        public MetodoPago? MetodoPago { get; set; }
+        public EstadoPedido? EstadoPedido { get; set; }
+        public EstadoPago? EstadoPago { get; set; }
+
+        public ICollection<PedidoDetalle> Detalles { get; set; } = new List<PedidoDetalle>();
     }
 }

@@ -17,17 +17,17 @@ namespace WilliamAPI.Controllers
         [HttpGet("lista")]
         public async Task<IActionResult> Lista()
         {
-            var lista = await _db.Productos.Include(p => p.oCategoria).ToListAsync();
-            return Ok(new { mensaje = "ok", response = lista });
+            var lista = await _db.Productos.AsNoTracking().ToListAsync();
+            return Ok(lista);
         }
 
         // GET /api/producto/{id}
         [HttpGet("{id:int}")]
         public async Task<IActionResult> Obtener(int id)
         {
-            var p = await _db.Productos.Include(x => x.oCategoria).FirstOrDefaultAsync(x => x.IdProducto == id);
+            var p = await _db.Productos.AsNoTracking().FirstOrDefaultAsync(x => x.IdProducto == id);
             if (p == null) return NotFound(new { mensaje = "Producto no encontrado" });
-            return Ok(new { mensaje = "ok", response = p });
+            return Ok(p);
         }
 
         // POST /api/producto  (Admin)

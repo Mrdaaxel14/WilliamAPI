@@ -1,4 +1,4 @@
-﻿using WilliamAPI.Models;
+﻿using System.Text.Json.Serialization;
 
 namespace WilliamAPI.Models
 {
@@ -9,7 +9,9 @@ namespace WilliamAPI.Models
         public int IdProducto { get; set; }
         public int Cantidad { get; set; }
 
-        public virtual Carrito? Carrito { get; set; }
-        public virtual Producto? Producto { get; set; }
+        [JsonIgnore]
+        public Carrito? Carrito { get; set; }
+
+        public Producto? Producto { get; set; }
     }
 }

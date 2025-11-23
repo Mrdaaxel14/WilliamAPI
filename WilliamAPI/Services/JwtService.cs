@@ -16,6 +16,7 @@ namespace WilliamAPI.Services
             var claims = new[]
             {
                 new Claim("id", user.IdUsuario.ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.IdUsuario.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Role, user.Rol)
             };

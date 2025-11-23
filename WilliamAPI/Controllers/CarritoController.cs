@@ -19,8 +19,8 @@ namespace WilliamAPI.Controllers
         // Helper: obtener idUsuario desde token
         private int GetUserId()
         {
-            var idClaim = User.FindFirst("id")?.Value;
-            return idClaim != null ? int.Parse(idClaim) : 0;
+            var idClaim = User.FindFirst("id")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            return int.TryParse(idClaim, out var id) ? id : 0;
         }
 
         // POST api/carrito/agregar
@@ -29,6 +29,12 @@ namespace WilliamAPI.Controllers
         {
             var idUsuario = GetUserId();
             if (idUsuario == 0) return Unauthorized();
+
+            if (dto.Cantidad <= 0)
+                return BadRequest(new { mensaje = "La cantidad debe ser mayor a cero" });
+
+            var producto = await _db.Productos.AsNoTracking().FirstOrDefaultAsync(p => p.IdProducto == dto.IdProducto);
+            if (producto == null) return NotFound(new { mensaje = "Producto no encontrado" });
 
             var carrito = await _db.Carritos.Include(c => c.Detalles)
                 .FirstOrDefaultAsync(c => c.IdUsuario == idUsuario);
@@ -77,7 +83,7 @@ namespace WilliamAPI.Controllers
             var items = carrito.Detalles.Select(d => new
             {
                 d.IdCarritoDetalle,
-                Producto = new { d.Producto.IdProducto, d.Producto.Descripcion, d.Producto.Precio, d.Producto.Marca },
+                Producto = d.Producto == null ? null : new { d.Producto.IdProducto, d.Producto.Descripcion, d.Producto.Precio, d.Producto.Marca },
                 d.Cantidad
             }).ToList();
 

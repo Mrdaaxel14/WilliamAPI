@@ -16,15 +16,15 @@ namespace WilliamAPI.Controllers
         [HttpGet("lista")]
         public async Task<IActionResult> Lista()
         {
-            var categorias = await _db.Categoria.ToListAsync();
-            return Ok(new { mensaje = "ok", response = categorias });
+            var categorias = await _db.Categorias.AsNoTracking().ToListAsync();
+            return Ok(categorias);
         }
 
         [Authorize(Roles = "Admin")]
         [HttpPost("crear")]
         public async Task<IActionResult> Crear([FromBody] Categoria cat)
         {
-            _db.Categoria.Add(cat);
+            _db.Categorias.Add(cat);
             await _db.SaveChangesAsync();
             return Ok(new { mensaje = "ok" });
         }
@@ -33,7 +33,7 @@ namespace WilliamAPI.Controllers
         [HttpPut("editar/{id}")]
         public async Task<IActionResult> Editar(int id, [FromBody] Categoria cat)
         {
-            var o = await _db.Categoria.FindAsync(id);
+            var o = await _db.Categorias.FindAsync(id);
             if (o == null) return NotFound("Categoría no encontrada");
             o.Descripcion = cat.Descripcion ?? o.Descripcion;
             await _db.SaveChangesAsync();
@@ -44,9 +44,9 @@ namespace WilliamAPI.Controllers
         [HttpDelete("eliminar/{id}")]
         public async Task<IActionResult> Eliminar(int id)
         {
-            var o = await _db.Categoria.FindAsync(id);
+            var o = await _db.Categorias.FindAsync(id);
             if (o == null) return NotFound("Categoría no encontrada");
-            _db.Categoria.Remove(o);
+            _db.Categorias.Remove(o);
             await _db.SaveChangesAsync();
             return Ok(new { mensaje = "ok" });
         }

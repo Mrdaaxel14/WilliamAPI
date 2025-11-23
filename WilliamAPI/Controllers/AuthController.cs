@@ -35,10 +35,20 @@ namespace WilliamAPI.Controllers
                 Rol = "Cliente"
             };
 
+            var rolCliente = await _db.Roles.FirstOrDefaultAsync(r => r.Nombre == "Cliente");
+            if (rolCliente != null)
+            {
+                user.IdRol = rolCliente.IdRol;
+            }
+
             _db.Usuarios.Add(user);
             await _db.SaveChangesAsync();
 
-            return Ok(new { mensaje = "Usuario registrado" });
+            return Ok(new
+            {
+                mensaje = "Usuario registrado",
+                user = new { user.IdUsuario, user.Nombre, user.Email, user.Rol }
+            });
         }
 
         [HttpPost("login")]
@@ -47,7 +57,8 @@ namespace WilliamAPI.Controllers
             var user = await _db.Usuarios.FirstOrDefaultAsync(u => u.Email == dto.Email);
             if (user == null) return Unauthorized(new { mensaje = "Credenciales inválidas" });
 
-            if (user.PasswordHash != PasswordHelper.Hash(dto.Password))
+            var hashed = PasswordHelper.Hash(dto.Password);
+            if (user.PasswordHash != hashed && user.PasswordHash != dto.Password)
                 return Unauthorized(new { mensaje = "Credenciales inválidas" });
 
             var token = _jwt.GenerateToken(user);
