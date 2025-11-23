@@ -1,5 +1,5 @@
 -- ===========================================
---   CREACI�N DE BASE DE DATOS
+--   CREACI�N DE BASE DE DATOS
 -- ===========================================
 CREATE DATABASE WilliamStoreDB;
 GO
@@ -24,7 +24,7 @@ GO
 
 
 -- ===========================================
---   TABLA: CATEGOR�AS
+--   TABLA: CATEGOR�AS
 -- ===========================================
 CREATE TABLE Categoria (
     IdCategoria INT IDENTITY(1,1) PRIMARY KEY,
@@ -133,5 +133,200 @@ VALUES ('Cliente Test', 'cliente@test.com', '123456'); -- luego cambia a hash re
 INSERT INTO Usuarios (Nombre, Email, PasswordHash, Rol)
 VALUES ('Admin Test', 'admin@mail.com', '123456', 'Admin'); -- luego cambia a hash real
 
+GO
 
-SELECT * FROM Usuarios
+/*======================================================
+=              TABLAS DE ROLES Y PERMISOS              =
+======================================================*/
+
+-- ROLES (Admin, Empleado, Cliente)
+CREATE TABLE Roles (
+    IdRol INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre VARCHAR(50) NOT NULL UNIQUE
+);
+GO
+
+-- PERMISOS (Opcional)
+CREATE TABLE Permisos (
+    IdPermiso INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre VARCHAR(100) NOT NULL UNIQUE
+);
+GO
+
+-- RELACIÓN USUARIO ↔ ROL
+ALTER TABLE Usuarios
+ADD IdRol INT NULL;
+
+ALTER TABLE Usuarios
+ADD CONSTRAINT FK_Usuarios_Roles
+FOREIGN KEY (IdRol) REFERENCES Roles(IdRol);
+GO
+
+/*======================================================
+=                TABLA: DIRECCIONES                    =
+======================================================*/
+
+CREATE TABLE DireccionesUsuario (
+    IdDireccion INT IDENTITY(1,1) PRIMARY KEY,
+    IdUsuario INT NOT NULL,
+    Provincia VARCHAR(100),
+    Ciudad VARCHAR(100),
+    Calle VARCHAR(150),
+    Numero VARCHAR(20),
+    CodigoPostal VARCHAR(20),
+
+    CONSTRAINT FK_Direcciones_Usuario
+        FOREIGN KEY(IdUsuario) REFERENCES Usuarios(IdUsuario)
+);
+GO
+
+/*======================================================
+=                TABLA: MÉTODOS DE PAGO                =
+======================================================*/
+
+CREATE TABLE MetodoPago (
+    IdMetodoPago INT IDENTITY(1,1) PRIMARY KEY,
+    Metodo VARCHAR(50) NOT NULL   -- Ej: Efectivo, Tarjeta, MercadoPago
+);
+GO
+
+ALTER TABLE Pedido
+ADD IdMetodoPago INT NULL;
+
+ALTER TABLE Pedido
+ADD CONSTRAINT FK_Pedido_MetodoPago
+FOREIGN KEY(IdMetodoPago) REFERENCES MetodoPago(IdMetodoPago);
+GO
+
+/*======================================================
+=             TABLAS DE ESTADOS (Auxiliares)           =
+======================================================*/
+
+CREATE TABLE EstadoPedido (
+    IdEstadoPedido INT IDENTITY(1,1) PRIMARY KEY,
+    Estado VARCHAR(50) UNIQUE NOT NULL
+);
+GO
+
+CREATE TABLE EstadoPago (
+    IdEstadoPago INT IDENTITY(1,1) PRIMARY KEY,
+    Estado VARCHAR(50) UNIQUE NOT NULL
+);
+GO
+
+CREATE TABLE EstadoStock (
+    IdEstadoStock INT IDENTITY(1,1) PRIMARY KEY,
+    Estado VARCHAR(50) UNIQUE NOT NULL
+);
+GO
+
+ALTER TABLE Pedido
+ADD IdEstadoPedido INT NULL,
+    IdEstadoPago INT NULL;
+
+ALTER TABLE Pedido
+ADD CONSTRAINT FK_Pedido_EstadoPedido 
+    FOREIGN KEY(IdEstadoPedido) REFERENCES EstadoPedido(IdEstadoPedido);
+
+ALTER TABLE Pedido
+ADD CONSTRAINT FK_Pedido_EstadoPago
+    FOREIGN KEY(IdEstadoPago) REFERENCES EstadoPago(IdEstadoPago);
+GO
+
+/*======================================================
+=                TABLAS DE INVENTARIO                  =
+======================================================*/
+
+-- STOCK POR PRODUCTO
+CREATE TABLE Stock (
+    IdStock INT IDENTITY(1,1) PRIMARY KEY,
+    IdProducto INT NOT NULL,
+    Cantidad INT NOT NULL DEFAULT 0,
+    IdEstadoStock INT NULL,
+    
+    CONSTRAINT FK_Stock_Producto
+        FOREIGN KEY(IdProducto) REFERENCES Producto(IdProducto),
+
+    CONSTRAINT FK_Stock_EstadoStock
+        FOREIGN KEY(IdEstadoStock) REFERENCES EstadoStock(IdEstadoStock)
+);
+GO
+
+-- IMÁGENES DE PRODUCTO
+CREATE TABLE ImagenProducto (
+    IdImagen INT IDENTITY(1,1) PRIMARY KEY,
+    IdProducto INT NOT NULL,
+    UrlImagen VARCHAR(500) NOT NULL,
+
+    CONSTRAINT FK_Producto_Imagen
+        FOREIGN KEY(IdProducto) REFERENCES Producto(IdProducto)
+);
+GO
+
+/*======================================================
+=                  COMPRAS A PROVEEDORES               =
+======================================================*/
+
+CREATE TABLE Compra (
+    IdCompra INT IDENTITY(1,1) PRIMARY KEY,
+    Fecha DATETIME DEFAULT GETDATE(),
+    Total DECIMAL(10,2) NOT NULL,
+    IdUsuario INT NULL  -- empleado/admin que registró
+
+    CONSTRAINT FK_Compra_Usuario
+        FOREIGN KEY(IdUsuario) REFERENCES Usuarios(IdUsuario)
+);
+GO
+
+CREATE TABLE CompraDetalle (
+    IdCompraDetalle INT IDENTITY(1,1) PRIMARY KEY,
+    IdCompra INT NOT NULL,
+    IdProducto INT NOT NULL,
+    Cantidad INT NOT NULL,
+    CostoUnitario DECIMAL(10,2) NOT NULL,
+
+    CONSTRAINT FK_CompraDetalle_Compra
+        FOREIGN KEY(IdCompra) REFERENCES Compra(IdCompra),
+
+    CONSTRAINT FK_CompraDetalle_Producto
+        FOREIGN KEY(IdProducto) REFERENCES Producto(IdProducto)
+);
+GO
+
+/*======================================================
+=                     AUDITORÍA                        =
+======================================================*/
+
+CREATE TABLE Auditoria (
+    IdAuditoria INT IDENTITY(1,1) PRIMARY KEY,
+    IdUsuario INT NULL,
+    Fecha DATETIME DEFAULT GETDATE(),
+    Accion VARCHAR(200),
+    TablaAfectada VARCHAR(100),
+    ValorAnterior TEXT NULL,
+    ValorNuevo TEXT NULL,
+
+    CONSTRAINT FK_Auditoria_Usuario
+        FOREIGN KEY(IdUsuario) REFERENCES Usuarios(IdUsuario)
+);
+GO
+
+/*======================================================
+=      INSERTS BÁSICOS PARA ROLES Y ESTADOS            =
+======================================================*/
+
+INSERT INTO Roles (Nombre)
+VALUES ('Admin'), ('Empleado'), ('Cliente');
+
+INSERT INTO EstadoPedido (Estado)
+VALUES ('Pendiente'), ('Confirmado'), ('Preparando'), ('Enviado'), ('Entregado'), ('Cancelado');
+
+INSERT INTO EstadoPago (Estado)
+VALUES ('Pendiente'), ('Pagado'), ('Rechazado');
+
+INSERT INTO EstadoStock (Estado)
+VALUES ('En stock'), ('Bajo'), ('Sin stock');
+
+INSERT INTO MetodoPago (Metodo)
+VALUES ('Efectivo'), ('Tarjeta'), ('MercadoPago');
+GO
