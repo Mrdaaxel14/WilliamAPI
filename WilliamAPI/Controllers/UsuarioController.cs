@@ -26,6 +26,7 @@ namespace WilliamAPI.Controllers
                     u.IdUsuario,
                     u.Nombre,
                     u.Email,
+                    u.Telefono,
                     u.Rol,
                     u.IdRol,
                     RolNombre = u.RolNavigation != null ? u.RolNavigation.Nombre : u.Rol,
@@ -48,6 +49,7 @@ namespace WilliamAPI.Controllers
                     u.IdUsuario,
                     u.Nombre,
                     u.Email,
+                    u.Telefono,
                     u.Rol,
                     u.IdRol,
                     RolNombre = u.RolNavigation != null ? u.RolNavigation.Nombre : u.Rol,
@@ -77,6 +79,9 @@ namespace WilliamAPI.Controllers
                 usuario.Email = dto.Email;
             }
 
+            if (!string.IsNullOrWhiteSpace(dto.Telefono))
+                usuario.Telefono = dto.Telefono;
+
             if (!string.IsNullOrWhiteSpace(dto.Rol))
                 usuario.Rol = dto.Rol;
 
@@ -95,7 +100,7 @@ namespace WilliamAPI.Controllers
             return Ok(new
             {
                 mensaje = "ok",
-                response = new { usuario.IdUsuario, usuario.Nombre, usuario.Email, usuario.Rol, usuario.IdRol, usuario.FechaRegistro }
+                response = new { usuario.IdUsuario, usuario.Nombre, usuario.Email, usuario.Telefono, usuario.Rol, usuario.IdRol, usuario.FechaRegistro }
             });
         }
 

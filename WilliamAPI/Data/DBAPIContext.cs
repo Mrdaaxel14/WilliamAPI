@@ -38,6 +38,7 @@ namespace WilliamAPI.Data
                 entity.Property(e => e.Nombre).HasMaxLength(100).IsRequired();
                 entity.Property(e => e.Email).HasMaxLength(100).IsRequired();
                 entity.Property(e => e.PasswordHash).HasMaxLength(255).IsRequired();
+                entity.Property(e => e.Telefono).HasMaxLength(20);
                 entity.Property(e => e.Rol).HasMaxLength(20).HasDefaultValue("Cliente");
                 entity.Property(e => e.FechaRegistro).HasColumnType("datetime").HasDefaultValueSql("getdate()");
                 entity.HasIndex(e => e.Email).IsUnique();
@@ -52,16 +53,16 @@ namespace WilliamAPI.Data
                 entity.ToTable("DireccionesUsuario");
                 entity.HasKey(d => d.IdDireccion);
                 entity.Property(d => d.Provincia).HasMaxLength(100);
-    entity.Property(d => d.Ciudad).HasMaxLength(100);
-    entity.Property(d => d.Calle).HasMaxLength(150);
-    entity.Property(d => d.Numero).HasMaxLength(20);
-    entity.Property(d => d.CodigoPostal).HasMaxLength(20);
+                entity.Property(d => d.Ciudad).HasMaxLength(100);
+                entity.Property(d => d.Calle).HasMaxLength(150);
+                entity.Property(d => d.Numero).HasMaxLength(20);
+                entity.Property(d => d.CodigoPostal).HasMaxLength(20);
 
-    entity.HasOne(d => d.Usuario)
-                      .WithMany(u => u.Direcciones)
-                      .HasForeignKey(d => d.IdUsuario)
-                      .HasConstraintName("FK_Direcciones_Usuario");
-    });
+                entity.HasOne(d => d.Usuario)
+                                  .WithMany(u => u.Direcciones)
+                                  .HasForeignKey(d => d.IdUsuario)
+                                  .HasConstraintName("FK_Direcciones_Usuario");
+            });
 
             modelBuilder.Entity<MetodoPago>(entity =>
             {

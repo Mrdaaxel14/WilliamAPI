@@ -14,6 +14,8 @@ namespace WilliamAPI.Models
         [Required, MaxLength(255)]
         public string PasswordHash { get; set; } = null!;
         [MaxLength(20)]
+        public string? Telefono { get; set; }
+        [MaxLength(20)]
         public string Rol { get; set; } = "Cliente";
         public DateTime FechaRegistro { get; set; } = DateTime.UtcNow;
         public int? IdRol { get; set; }

@@ -32,6 +32,7 @@ namespace WilliamAPI.Controllers
                 Nombre = dto.Nombre,
                 Email = dto.Email,
                 PasswordHash = PasswordHelper.Hash(dto.Password),
+                Telefono = dto.Telefono,
                 Rol = "Cliente"
             };
 
@@ -47,7 +48,7 @@ namespace WilliamAPI.Controllers
             return Ok(new
             {
                 mensaje = "Usuario registrado",
-                user = new { user.IdUsuario, user.Nombre, user.Email, user.Rol }
+                user = new { user.IdUsuario, user.Nombre, user.Email, user.Telefono, user.Rol }
             });
         }
 
@@ -62,7 +63,7 @@ namespace WilliamAPI.Controllers
                 return Unauthorized(new { mensaje = "Credenciales inválidas" });
 
             var token = _jwt.GenerateToken(user);
-            return Ok(new { token, user = new { user.IdUsuario, user.Nombre, user.Email, user.Rol } });
+            return Ok(new { token, user = new { user.IdUsuario, user.Nombre, user.Email, user.Telefono, user.Rol } });
         }
     }
 }
