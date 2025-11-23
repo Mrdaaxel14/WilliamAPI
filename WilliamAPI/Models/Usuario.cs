@@ -28,6 +28,8 @@ namespace WilliamAPI.Models
         [JsonIgnore]
         public ICollection<DireccionUsuario> Direcciones { get; set; } = new HashSet<DireccionUsuario>();
         [JsonIgnore]
+        public ICollection<MetodoPagoUsuario> MetodosPago { get; set; } = new HashSet<MetodoPagoUsuario>();
+        [JsonIgnore]
         public ICollection<Compra> Compras { get; set; } = new HashSet<Compra>();
         [JsonIgnore]
         public ICollection<Auditoria> Auditorias { get; set; } = new HashSet<Auditoria>();
