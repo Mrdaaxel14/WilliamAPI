@@ -48,6 +48,108 @@ namespace WilliamAPI.Data
                       .HasForeignKey(e => e.IdRol);
             });
 
+            modelBuilder.Entity<Rol>(entity =>
+            {
+                entity.ToTable("Roles");
+                entity.HasKey(r => r.IdRol);
+                entity.Property(r => r.Nombre).HasMaxLength(50).IsRequired();
+                entity.HasIndex(r => r.Nombre).IsUnique();
+            });
+
+            modelBuilder.Entity<Permiso>(entity =>
+            {
+                entity.ToTable("Permisos");
+                entity.HasKey(p => p.IdPermiso);
+                entity.Property(p => p.Nombre).HasMaxLength(100).IsRequired();
+                entity.HasIndex(p => p.Nombre).IsUnique();
+            });
+
+            modelBuilder.Entity<Categoria>(entity =>
+            {
+                entity.ToTable("Categoria");
+                entity.HasKey(c => c.IdCategoria);
+                entity.Property(c => c.Descripcion).HasMaxLength(100).IsRequired();
+            });
+
+            modelBuilder.Entity<Producto>(entity =>
+            {
+                entity.ToTable("Producto");
+                entity.HasKey(p => p.IdProducto);
+                entity.Property(p => p.CodigoBarra).HasMaxLength(30);
+                entity.Property(p => p.Descripcion).HasMaxLength(100).IsRequired();
+                entity.Property(p => p.Marca).HasMaxLength(50);
+                entity.Property(p => p.Precio).HasColumnType("decimal(10,2)").IsRequired();
+
+                entity.HasOne(p => p.Categoria)
+                      .WithMany(c => c.Productos)
+                      .HasForeignKey(p => p.IdCategoria)
+                      .HasConstraintName("FK_Producto_Categoria");
+            });
+
+            modelBuilder.Entity<Carrito>(entity =>
+            {
+                entity.ToTable("Carrito");
+                entity.HasKey(c => c.IdCarrito);
+
+                entity.HasOne(c => c.Usuario)
+                      .WithMany(u => u.Carritos)
+                      .HasForeignKey(c => c.IdUsuario)
+                      .HasConstraintName("FK_Carrito_Usuario");
+            });
+
+            modelBuilder.Entity<CarritoDetalle>(entity =>
+            {
+                entity.ToTable("CarritoDetalle");
+                entity.HasKey(cd => cd.IdCarritoDetalle);
+                entity.Property(cd => cd.Cantidad).IsRequired();
+
+                entity.HasOne(cd => cd.Carrito)
+                      .WithMany(c => c.Detalles)
+                      .HasForeignKey(cd => cd.IdCarrito)
+                      .HasConstraintName("FK_CarritoDetalle_Carrito");
+
+                entity.HasOne(cd => cd.Producto)
+                      .WithMany(p => p.CarritoDetalles)
+                      .HasForeignKey(cd => cd.IdProducto)
+                      .HasConstraintName("FK_CarritoDetalle_Producto");
+            });
+
+            modelBuilder.Entity<Pedido>(entity =>
+            {
+                entity.ToTable("Pedido");
+                entity.HasKey(p => p.IdPedido);
+                entity.Property(p => p.Fecha).HasColumnType("datetime").HasDefaultValueSql("getdate()");
+                entity.Property(p => p.Total).HasColumnType("decimal(10,2)");
+
+                entity.HasOne(p => p.Usuario)
+                      .WithMany(u => u.Pedidos)
+                      .HasForeignKey(p => p.IdUsuario)
+                      .HasConstraintName("FK_Pedido_Usuario");
+
+                entity.HasOne(p => p.MetodoPago)
+                      .WithMany(mp => mp.Pedidos)
+                      .HasForeignKey(p => p.IdMetodoPago)
+                      .HasConstraintName("FK_Pedido_MetodoPago");
+            });
+
+            modelBuilder.Entity<PedidoDetalle>(entity =>
+            {
+                entity.ToTable("PedidoDetalle");
+                entity.HasKey(pd => pd.IdPedidoDetalle);
+                entity.Property(pd => pd.Cantidad).IsRequired();
+                entity.Property(pd => pd.PrecioUnitario).HasColumnType("decimal(10,2)");
+
+                entity.HasOne(pd => pd.Pedido)
+                      .WithMany(p => p.Detalles)
+                      .HasForeignKey(pd => pd.IdPedido)
+                      .HasConstraintName("FK_PedidoDetalle_Pedido");
+
+                entity.HasOne(pd => pd.Producto)
+                      .WithMany(p => p.PedidoDetalles)
+                      .HasForeignKey(pd => pd.IdProducto)
+                      .HasConstraintName("FK_PedidoDetalle_Producto");
+            });
+
             modelBuilder.Entity<DireccionUsuario>(entity =>
             {
                 entity.ToTable("DireccionesUsuario");
@@ -69,11 +171,11 @@ namespace WilliamAPI.Data
                 entity.ToTable("MetodoPago");
                 entity.HasKey(m => m.IdMetodoPago);
                 entity.Property(m => m.Metodo).HasMaxLength(50).IsRequired();
-});
+            });
 
-modelBuilder.Entity<MetodoPagoUsuario>(entity =>
-{
-    entity.ToTable("MetodoPagoUsuario");
+            modelBuilder.Entity<MetodoPagoUsuario>(entity =>
+            {
+                entity.ToTable("MetodoPagoUsuario");
     entity.HasKey(m => m.IdMetodoPagoUsuario);
     entity.Property(m => m.Metodo).HasMaxLength(50).IsRequired();
     entity.Property(m => m.Titular).HasMaxLength(150);
