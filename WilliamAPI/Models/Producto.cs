@@ -13,14 +13,19 @@ namespace WilliamAPI.Models
 
         [JsonIgnore]
         public Categoria? Categoria { get; set; }
+
         [JsonIgnore]
         public ICollection<CarritoDetalle> CarritoDetalles { get; set; } = new HashSet<CarritoDetalle>();
+
         [JsonIgnore]
         public ICollection<PedidoDetalle> PedidoDetalles { get; set; } = new HashSet<PedidoDetalle>();
+
         [JsonIgnore]
         public ICollection<Stock> Stocks { get; set; } = new HashSet<Stock>();
-        [JsonIgnore]
+
+        // IMPORTANTE: Ya NO tiene [JsonIgnore] para permitir serialización cuando se necesite
         public ICollection<ImagenProducto> Imagenes { get; set; } = new HashSet<ImagenProducto>();
+
         [JsonIgnore]
         public ICollection<CompraDetalle> CompraDetalles { get; set; } = new HashSet<CompraDetalle>();
     }

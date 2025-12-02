@@ -331,3 +331,122 @@ VALUES ('En stock'), ('Bajo'), ('Sin stock');
 INSERT INTO MetodoPago (Metodo)
 VALUES ('Efectivo'), ('Tarjeta'), ('MercadoPago');
 GO
+
+USE WilliamStoreDB;
+GO
+
+-- =====================================================
+-- PASO 1: Agregar columnas a ImagenProducto
+-- =====================================================
+
+-- Agregar columna Orden (0 = principal)
+IF NOT EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('ImagenProducto') 
+               AND name = 'Orden')
+BEGIN
+    ALTER TABLE ImagenProducto
+    ADD Orden INT NOT NULL DEFAULT 0;
+END
+GO
+
+-- Agregar columna EsPrincipal
+IF NOT EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('ImagenProducto') 
+               AND name = 'EsPrincipal')
+BEGIN
+    ALTER TABLE ImagenProducto
+    ADD EsPrincipal BIT NOT NULL DEFAULT 0;
+END
+GO
+
+-- =====================================================
+-- PASO 2: Migrar datos existentes
+-- =====================================================
+
+-- Marcar la primera imagen de cada producto como principal
+WITH PrimerasImagenes AS (
+    SELECT 
+        IdImagen,
+        IdProducto,
+        ROW_NUMBER() OVER (PARTITION BY IdProducto ORDER BY IdImagen) AS Fila
+    FROM ImagenProducto
+)
+UPDATE ImagenProducto
+SET 
+    EsPrincipal = CASE WHEN pi.Fila = 1 THEN 1 ELSE 0 END,
+    Orden = pi.Fila - 1
+FROM ImagenProducto ip
+INNER JOIN PrimerasImagenes pi ON ip.IdImagen = pi.IdImagen;
+GO
+
+-- =====================================================
+-- PASO 3: Insertar im�genes de ejemplo (opcional)
+-- =====================================================
+
+-- Para los productos existentes que no tengan im�genes
+DECLARE @IdProducto1 INT, @IdProducto2 INT, @IdProducto3 INT;
+
+SELECT @IdProducto1 = IdProducto FROM Producto WHERE CodigoBarra = '0001';
+SELECT @IdProducto2 = IdProducto FROM Producto WHERE CodigoBarra = '0002';
+SELECT @IdProducto3 = IdProducto FROM Producto WHERE CodigoBarra = '0003';
+
+-- Remera Oversize (si no tiene im�genes)
+IF NOT EXISTS (SELECT 1 FROM ImagenProducto WHERE IdProducto = @IdProducto1)
+BEGIN
+    INSERT INTO ImagenProducto (IdProducto, UrlImagen, EsPrincipal, Orden)
+    VALUES 
+        (@IdProducto1, 'https://www.urbanstaroma.com/cdn/shop/files/p25-nike-hf9606-010.jpg?v=1742558386', 1, 0),
+        (@IdProducto1, 'https://www.jeanjail.com.au/cdn/shop/files/NikeSportswearPremiumEssentialsTeeBlack.jpg?v=1761106853&width=500', 0, 1),
+        (@IdProducto1, 'https://www.jeanjail.com.au/cdn/shop/files/NikeSportswearPremiumEssentialsTeeBlack1.jpg?v=1761106853&width=500', 0, 2);
+END
+
+-- Jean Slim Fit (si no tiene im�genes)
+IF NOT EXISTS (SELECT 1 FROM ImagenProducto WHERE IdProducto = @IdProducto2)
+BEGIN
+    INSERT INTO ImagenProducto (IdProducto, UrlImagen, EsPrincipal, Orden)
+    VALUES 
+        (@IdProducto2, 'https://img01.ztat.net/article/spp-media-p1/d7b82267c4774a27a6fe848f4db9db15/26d7222c3264488da1b59f225f883380.jpg?imwidth=1800', 1, 0),
+        (@IdProducto2, 'https://img01.ztat.net/article/spp-media-p1/1fcf4d94efa54184a290cf3dc443324c/6b31edafd74a453b934ad9ac4d9e3885.jpg?imwidth=1800', 0, 1),
+        (@IdProducto2, 'https://img01.ztat.net/article/spp-media-p1/34c3e29e5b20483e9ac5561cb6206762/d0390b9d093a4b809d6e6a7317873e4f.jpg?imwidth=1800', 0, 2);
+END
+
+-- Campera Rompeviento (si no tiene im�genes)
+IF NOT EXISTS (SELECT 1 FROM ImagenProducto WHERE IdProducto = @IdProducto3)
+BEGIN
+    INSERT INTO ImagenProducto (IdProducto, UrlImagen, EsPrincipal, Orden)
+    VALUES 
+        (@IdProducto3, 'https://di2ponv0v5otw.cloudfront.net/posts/2023/02/15/63ed7628ffb5d0ff8f7e1a8e/m_wp_63ed763632c1dc1bcde74082.webp', 1, 0),
+        (@IdProducto3, 'https://di2ponv0v5otw.cloudfront.net/posts/2023/02/15/63ed7628ffb5d0ff8f7e1a8e/m_wp_63ed763e4bf9ff7b551766eb.webp', 0, 1);
+END
+GO
+-- =====================================================
+-- PASO 4: Crear �ndice para mejor performance
+-- =====================================================
+
+IF NOT EXISTS (SELECT * FROM sys.indexes 
+               WHERE name = 'IX_ImagenProducto_IdProducto_Orden')
+BEGIN
+    CREATE INDEX IX_ImagenProducto_IdProducto_Orden 
+    ON ImagenProducto(IdProducto, Orden);
+END
+GO
+
+-- =====================================================
+-- VERIFICACI�N
+-- =====================================================
+
+-- Ver productos con sus im�genes
+SELECT 
+    p.IdProducto,
+    p.Descripcion,
+    i.IdImagen,
+    i.UrlImagen,
+    i.EsPrincipal,
+    i.Orden
+FROM Producto p
+LEFT JOIN ImagenProducto i ON p.IdProducto = i.IdProducto
+ORDER BY p.IdProducto, i.Orden;
+GO
+
+PRINT 'Migraci�n completada exitosamente';
+GO

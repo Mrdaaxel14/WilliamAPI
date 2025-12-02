@@ -229,16 +229,24 @@ modelBuilder.Entity<Stock>(entity =>
                       .HasConstraintName("FK_Stock_EstadoStock");
             });
 
+            // Agregar esta sección en OnModelCreating, reemplazando la configuración actual de ImagenProducto:
+
             modelBuilder.Entity<ImagenProducto>(entity =>
             {
                 entity.ToTable("ImagenProducto");
                 entity.HasKey(i => i.IdImagen);
                 entity.Property(i => i.UrlImagen).HasMaxLength(500).IsRequired();
+                entity.Property(i => i.Orden).HasDefaultValue(0);
+                entity.Property(i => i.EsPrincipal).HasDefaultValue(false);
 
                 entity.HasOne(i => i.Producto)
                       .WithMany(p => p.Imagenes)
                       .HasForeignKey(i => i.IdProducto)
                       .HasConstraintName("FK_Producto_Imagen");
+
+                // Índice para optimizar consultas
+                entity.HasIndex(i => new { i.IdProducto, i.Orden })
+                      .HasDatabaseName("IX_ImagenProducto_IdProducto_Orden");
             });
 
             modelBuilder.Entity<Compra>(entity =>
