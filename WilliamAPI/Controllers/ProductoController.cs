@@ -384,20 +384,15 @@ namespace WilliamAPI.Controllers
             if (producto == null)
                 return NotFound(new { mensaje = "Producto no encontrado" });
 
-            var stock = await _db.Stocks
-                .AsNoTracking()
-                .Include(s => s.EstadoStock)
-                .FirstOrDefaultAsync(s => s.IdProducto == id);
-
             return Ok(new
             {
                 mensaje = "ok",
                 response = new
                 {
                     IdProducto = id,
-                    Cantidad = stock?.Cantidad ?? 0,
-                    Estado = stock?.EstadoStock?.Estado ?? "Sin stock",
-                    Disponible = (stock?.Cantidad ?? 0) > 0
+                    Nombre = producto.Nombre,
+                    Stock = producto.Stock,
+                    EnStock = producto.Stock > 0
                 }
             });
         }
