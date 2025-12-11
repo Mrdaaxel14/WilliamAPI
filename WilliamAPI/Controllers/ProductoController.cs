@@ -118,12 +118,19 @@ namespace WilliamAPI.Controllers
             if (p == null)
                 return NotFound(new { mensaje = "Producto no encontrado" });
 
-            p.CodigoBarra = dto.CodigoBarra ?? p.CodigoBarra;
-            p.Descripcion = dto.Descripcion ?? p.Descripcion;
-            p.Marca = dto.Marca ?? p.Marca;
-            p.IdCategoria = dto.IdCategoria ?? p.IdCategoria;
-            p.Precio = dto.Precio != 0 ? dto.Precio : p.Precio;
-            p.Nombre = dto.Nombre ?? p.Nombre;
+            if (!string.IsNullOrWhiteSpace(dto.CodigoBarra))
+                p.CodigoBarra = dto.CodigoBarra;
+            if (!string.IsNullOrWhiteSpace(dto.Descripcion))
+                p.Descripcion = dto.Descripcion;
+            if (!string.IsNullOrWhiteSpace(dto.Marca))
+                p.Marca = dto.Marca;
+            if (dto.IdCategoria.HasValue)
+                p.IdCategoria = dto.IdCategoria;
+            if (dto.Precio != 0)
+                p.Precio = dto.Precio;
+            if (!string.IsNullOrWhiteSpace(dto.Nombre))
+                p.Nombre = dto.Nombre;
+            // Note: Stock is updated via dedicated endpoint PUT /api/producto/{id}/stock
 
             await _db.SaveChangesAsync();
             return Ok(new { mensaje = "ok" });
@@ -381,20 +388,15 @@ namespace WilliamAPI.Controllers
             if (producto == null)
                 return NotFound(new { mensaje = "Producto no encontrado" });
 
-            var stock = await _db.Stocks
-                .AsNoTracking()
-                .Include(s => s.EstadoStock)
-                .FirstOrDefaultAsync(s => s.IdProducto == id);
-
             return Ok(new
             {
                 mensaje = "ok",
                 response = new
                 {
                     IdProducto = id,
-                    Cantidad = stock?.Cantidad ?? 0,
-                    Estado = stock?.EstadoStock?.Estado ?? "Sin stock",
-                    Disponible = (stock?.Cantidad ?? 0) > 0
+                    Nombre = producto.Nombre,
+                    Stock = producto.Stock,
+                    Disponible = producto.Stock > 0
                 }
             });
         }
