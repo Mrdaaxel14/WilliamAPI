@@ -15,6 +15,9 @@ namespace WilliamAPI.Controllers
         private readonly DBAPIContext _db;
         private readonly JwtService _jwt;
 
+        // Código secreto para registro de Admin
+        private const string CODIGO_ADMIN = "WILLIAM-ADMIN-2025";
+
         public AuthController(DBAPIContext db, JwtService jwt)
         {
             _db = db;
@@ -64,6 +67,65 @@ namespace WilliamAPI.Controllers
 
             var token = _jwt.GenerateToken(user);
             return Ok(new { token, user = new { user.IdUsuario, user.Nombre, user.Email, user.Telefono, user.Rol } });
+        }
+
+        [HttpPost("register/admin")]
+        public async Task<IActionResult> RegisterAdmin([FromBody] RegisterAdminDto dto)
+        {
+            // Validar código secreto
+            if (string.IsNullOrWhiteSpace(dto.CodigoSecreto) || dto.CodigoSecreto != CODIGO_ADMIN)
+                return Unauthorized(new { mensaje = "Código de autorización inválido" });
+
+            if (await _db.Usuarios.AnyAsync(u => u.Email == dto.Email))
+                return BadRequest(new { mensaje = "El email ya está registrado" });
+
+            // Validaciones para admin
+            if (string.IsNullOrWhiteSpace(dto.Nombre) || dto.Nombre.Length < 2)
+                return BadRequest(new { mensaje = "El nombre debe tener al menos 2 caracteres" });
+
+            if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 8)
+                return BadRequest(new { mensaje = "La contraseña de admin debe tener al menos 8 caracteres" });
+
+            // Validar complejidad de contraseña
+            if (!IsStrongPassword(dto.Password))
+                return BadRequest(new { mensaje = "La contraseña debe contener al menos una mayúscula, una minúscula, un número y un carácter especial" });
+
+            var user = new Usuario
+            {
+                Nombre = dto.Nombre.Trim(),
+                Email = dto.Email.ToLower().Trim(),
+                PasswordHash = PasswordHelper.Hash(dto.Password),
+                Telefono = dto.Telefono?.Trim(),
+                Rol = "Admin"
+            };
+
+            var rolAdmin = await _db.Roles.FirstOrDefaultAsync(r => r.Nombre == "Admin");
+            if (rolAdmin != null)
+            {
+                user.IdRol = rolAdmin.IdRol;
+            }
+
+            _db.Usuarios.Add(user);
+            await _db.SaveChangesAsync();
+
+            var token = _jwt.GenerateToken(user);
+
+            return Ok(new
+            {
+                mensaje = "Administrador registrado exitosamente",
+                token,
+                user = new { user.IdUsuario, user.Nombre, user.Email, user.Telefono, user.Rol }
+            });
+        }
+
+        private bool IsStrongPassword(string password)
+        {
+            var hasUpperCase = password.Any(char.IsUpper);
+            var hasLowerCase = password.Any(char.IsLower);
+            var hasDigit = password.Any(char.IsDigit);
+            var hasSpecialChar = password.Any(c => !char.IsLetterOrDigit(c));
+
+            return password.Length >= 8 && hasUpperCase && hasLowerCase && hasDigit && hasSpecialChar;
         }
     }
 }
