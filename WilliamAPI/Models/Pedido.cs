@@ -11,6 +11,7 @@ namespace WilliamAPI.Models
         public int? IdMetodoPago { get; set; }
         public int? IdEstadoPedido { get; set; }
         public int? IdEstadoPago { get; set; }
+        public int? IdDireccion { get; set; }  // ← NUEVO
 
         [JsonIgnore]
         public Usuario? Usuario { get; set; }
@@ -18,6 +19,7 @@ namespace WilliamAPI.Models
         public MetodoPago? MetodoPago { get; set; }
         public EstadoPedido? EstadoPedido { get; set; }
         public EstadoPago? EstadoPago { get; set; }
+        public DireccionUsuario? Direccion { get; set; }  // ← NUEVO
 
         public ICollection<PedidoDetalle> Detalles { get; set; } = new List<PedidoDetalle>();
     }

@@ -82,6 +82,7 @@ namespace WilliamAPI.Controllers
             return Ok(new { mensaje = "ok", response = producto });
         }
 
+
         // POST /api/producto (Admin)
         [Authorize(Roles = "Admin")]
         [HttpPost]
@@ -238,6 +239,155 @@ namespace WilliamAPI.Controllers
                 .ToListAsync();
 
             return Ok(new { mensaje = "ok", response = imagenes });
+        }
+
+        // GET /api/producto/buscar?q=remera&idCategoria=1&precioMin=1000&precioMax=50000&pagina=1&porPagina=20
+        [HttpGet("buscar")]
+        public async Task<IActionResult> Buscar(
+            string? q,
+            int? idCategoria,
+            decimal? precioMin,
+            decimal? precioMax,
+            string? marca,
+            string? ordenarPor,      // "precio_asc", "precio_desc", "nombre_asc", "nombre_desc"
+            int pagina = 1,
+            int porPagina = 20)
+        {
+            // Validar parámetros de paginación
+            if (pagina < 1) pagina = 1;
+            if (porPagina < 1) porPagina = 20;
+            if (porPagina > 100) porPagina = 100; // Máximo 100 items por página
+
+            var query = _db.Productos
+                .Include(p => p.Imagenes)
+                .Include(p => p.Categoria)
+                .AsNoTracking()
+                .AsQueryable();
+
+            // Filtro por texto (busca en descripción y marca)
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var busqueda = q.ToLower().Trim();
+                query = query.Where(p =>
+                    p.Descripcion.ToLower().Contains(busqueda) ||
+                    (p.Marca != null && p.Marca.ToLower().Contains(busqueda)) ||
+                    (p.CodigoBarra != null && p.CodigoBarra.Contains(busqueda))
+                );
+            }
+
+            // Filtro por categoría
+            if (idCategoria.HasValue)
+            {
+                query = query.Where(p => p.IdCategoria == idCategoria.Value);
+            }
+
+            // Filtro por marca
+            if (!string.IsNullOrWhiteSpace(marca))
+            {
+                query = query.Where(p => p.Marca != null && p.Marca.ToLower() == marca.ToLower().Trim());
+            }
+
+            // Filtro por rango de precio
+            if (precioMin.HasValue)
+            {
+                query = query.Where(p => p.Precio >= precioMin.Value);
+            }
+            if (precioMax.HasValue)
+            {
+                query = query.Where(p => p.Precio <= precioMax.Value);
+            }
+
+            // Ordenamiento
+            query = ordenarPor?.ToLower() switch
+            {
+                "precio_asc" => query.OrderBy(p => p.Precio),
+                "precio_desc" => query.OrderByDescending(p => p.Precio),
+                "nombre_asc" => query.OrderBy(p => p.Descripcion),
+                "nombre_desc" => query.OrderByDescending(p => p.Descripcion),
+                _ => query.OrderBy(p => p.IdProducto) // Por defecto
+            };
+
+            // Contar total antes de paginar
+            var totalItems = await query.CountAsync();
+            var totalPaginas = (int)Math.Ceiling((double)totalItems / porPagina);
+
+            // Aplicar paginación
+            var productos = await query
+                .Skip((pagina - 1) * porPagina)
+                .Take(porPagina)
+                .Select(p => new ProductoListaDto
+                {
+                    IdProducto = p.IdProducto,
+                    CodigoBarra = p.CodigoBarra,
+                    Descripcion = p.Descripcion,
+                    Marca = p.Marca,
+                    IdCategoria = p.IdCategoria,
+                    Precio = p.Precio,
+                    ImagenPrincipal = p.Imagenes
+                        .Where(i => i.EsPrincipal)
+                        .Select(i => i.UrlImagen)
+                        .FirstOrDefault()
+                        ?? p.Imagenes
+                            .OrderBy(i => i.Orden)
+                            .Select(i => i.UrlImagen)
+                            .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            var resultado = new BuscarProductoResultDto
+            {
+                TotalItems = totalItems,
+                TotalPaginas = totalPaginas,
+                PaginaActual = pagina,
+                ItemsPorPagina = porPagina,
+                Productos = productos
+            };
+
+            return Ok(new { mensaje = "ok", response = resultado });
+        }
+
+        // GET /api/producto/marcas (obtener lista de marcas disponibles)
+        [HttpGet("marcas")]
+        public async Task<IActionResult> ObtenerMarcas()
+        {
+            var marcas = await _db.Productos
+                .AsNoTracking()
+                .Where(p => p.Marca != null && p.Marca != "")
+                .Select(p => p.Marca)
+                .Distinct()
+                .OrderBy(m => m)
+                .ToListAsync();
+
+            return Ok(new { mensaje = "ok", response = marcas });
+        }
+
+        // GET /api/producto/{id}/stock (verificar stock de un producto)
+        [HttpGet("{id}/stock")]
+        public async Task<IActionResult> VerificarStock(int id)
+        {
+            var producto = await _db.Productos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.IdProducto == id);
+
+            if (producto == null)
+                return NotFound(new { mensaje = "Producto no encontrado" });
+
+            var stock = await _db.Stocks
+                .AsNoTracking()
+                .Include(s => s.EstadoStock)
+                .FirstOrDefaultAsync(s => s.IdProducto == id);
+
+            return Ok(new
+            {
+                mensaje = "ok",
+                response = new
+                {
+                    IdProducto = id,
+                    Cantidad = stock?.Cantidad ?? 0,
+                    Estado = stock?.EstadoStock?.Estado ?? "Sin stock",
+                    Disponible = (stock?.Cantidad ?? 0) > 0
+                }
+            });
         }
     }
 }

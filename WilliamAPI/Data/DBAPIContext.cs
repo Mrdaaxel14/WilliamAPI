@@ -127,9 +127,25 @@ namespace WilliamAPI.Data
                       .HasConstraintName("FK_Pedido_Usuario");
 
                 entity.HasOne(p => p.MetodoPago)
-                      .WithMany(mp => mp.Pedidos)
+                      .WithMany(m => m.Pedidos)
                       .HasForeignKey(p => p.IdMetodoPago)
                       .HasConstraintName("FK_Pedido_MetodoPago");
+
+                entity.HasOne(p => p.EstadoPedido)
+                      .WithMany(e => e.Pedidos)
+                      .HasForeignKey(p => p.IdEstadoPedido)
+                      .HasConstraintName("FK_Pedido_EstadoPedido");
+
+                entity.HasOne(p => p.EstadoPago)
+                      .WithMany(e => e.Pedidos)
+                      .HasForeignKey(p => p.IdEstadoPago)
+                      .HasConstraintName("FK_Pedido_EstadoPago");
+
+                // ← NUEVO: Relación con Dirección
+                entity.HasOne(p => p.Direccion)
+                      .WithMany()
+                      .HasForeignKey(p => p.IdDireccion)
+                      .HasConstraintName("FK_Pedido_Direccion");
             });
 
             modelBuilder.Entity<PedidoDetalle>(entity =>
