@@ -76,7 +76,7 @@ namespace WilliamAPI.Controllers
             if (string.IsNullOrWhiteSpace(dto.CodigoSecreto) || dto.CodigoSecreto != CODIGO_ADMIN)
                 return Unauthorized(new { mensaje = "Código de autorización inválido" });
 
-            if (await _db.Usuarios.AnyAsync(u => u.Email == dto.Email))
+            if (await _db.Usuarios.AnyAsync(u => u.Email == dto.Email.ToLower().Trim()))
                 return BadRequest(new { mensaje = "El email ya está registrado" });
 
             // Validaciones para admin
