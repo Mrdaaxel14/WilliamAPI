@@ -450,3 +450,60 @@ GO
 
 PRINT 'Migraci�n completada exitosamente';
 GO
+
+-- =====================================================
+-- MIGRACIÓN: Agregar Nombre y Stock a Producto
+-- =====================================================
+
+USE WilliamStoreDB;
+GO
+
+-- Agregar columna Nombre
+IF NOT EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('Producto') 
+               AND name = 'Nombre')
+BEGIN
+    ALTER TABLE Producto
+    ADD Nombre VARCHAR(150) NULL;  -- NULL temporalmente para migración
+END
+GO
+
+-- Migrar datos existentes: copiar Descripcion a Nombre
+UPDATE Producto
+SET Nombre = Descripcion
+WHERE Nombre IS NULL;
+GO
+
+-- Hacer Nombre NOT NULL después de migrar datos
+ALTER TABLE Producto
+ALTER COLUMN Nombre VARCHAR(150) NOT NULL;
+GO
+
+-- Agregar columna Stock
+IF NOT EXISTS (SELECT * FROM sys.columns 
+               WHERE object_id = OBJECT_ID('Producto') 
+               AND name = 'Stock')
+BEGIN
+    ALTER TABLE Producto
+    ADD Stock INT NOT NULL DEFAULT 0;
+END
+GO
+
+-- Crear índice en Nombre para búsquedas
+IF NOT EXISTS (SELECT * FROM sys.indexes 
+               WHERE name = 'IX_Producto_Nombre')
+BEGIN
+    CREATE INDEX IX_Producto_Nombre 
+    ON Producto(Nombre);
+END
+GO
+
+-- Agregar estado "Devuelto" a EstadoPedido si no existe
+IF NOT EXISTS (SELECT 1 FROM EstadoPedido WHERE Estado = 'Devuelto')
+BEGIN
+    INSERT INTO EstadoPedido (Estado) VALUES ('Devuelto');
+END
+GO
+
+PRINT 'Migración de Nombre y Stock completada exitosamente';
+GO

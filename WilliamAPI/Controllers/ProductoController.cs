@@ -26,9 +26,12 @@ namespace WilliamAPI.Controllers
                     IdProducto = p.IdProducto,
                     CodigoBarra = p.CodigoBarra,
                     Descripcion = p.Descripcion,
+                    Nombre = p.Nombre,
                     Marca = p.Marca,
                     IdCategoria = p.IdCategoria,
                     Precio = p.Precio,
+                    Stock = p.Stock,
+                    EnStock = p.Stock > 0,
                     ImagenPrincipal = p.Imagenes
                         .Where(i => i.EsPrincipal)
                         .Select(i => i.UrlImagen)
@@ -57,10 +60,13 @@ namespace WilliamAPI.Controllers
                     IdProducto = p.IdProducto,
                     CodigoBarra = p.CodigoBarra,
                     Descripcion = p.Descripcion,
+                    Nombre = p.Nombre,
                     Marca = p.Marca,
                     IdCategoria = p.IdCategoria,
                     CategoriaNombre = p.Categoria != null ? p.Categoria.Descripcion : null,
                     Precio = p.Precio,
+                    Stock = p.Stock,
+                    EnStock = p.Stock > 0,
                     ImagenPrincipal = p.Imagenes
                         .Where(i => i.EsPrincipal)
                         .Select(i => i.UrlImagen)
@@ -92,9 +98,11 @@ namespace WilliamAPI.Controllers
             {
                 CodigoBarra = dto.CodigoBarra,
                 Descripcion = dto.Descripcion,
+                Nombre = dto.Nombre,
                 Marca = dto.Marca,
                 IdCategoria = dto.IdCategoria,
-                Precio = dto.Precio
+                Precio = dto.Precio,
+                Stock = dto.Stock
             };
 
             _db.Productos.Add(producto);
@@ -114,6 +122,7 @@ namespace WilliamAPI.Controllers
 
             p.CodigoBarra = dto.CodigoBarra ?? p.CodigoBarra;
             p.Descripcion = dto.Descripcion ?? p.Descripcion;
+            p.Nombre = dto.Nombre ?? p.Nombre;
             p.Marca = dto.Marca ?? p.Marca;
             p.IdCategoria = dto.IdCategoria ?? p.IdCategoria;
             p.Precio = dto.Precio != 0 ? dto.Precio : p.Precio;
@@ -320,9 +329,12 @@ namespace WilliamAPI.Controllers
                     IdProducto = p.IdProducto,
                     CodigoBarra = p.CodigoBarra,
                     Descripcion = p.Descripcion,
+                    Nombre = p.Nombre,
                     Marca = p.Marca,
                     IdCategoria = p.IdCategoria,
                     Precio = p.Precio,
+                    Stock = p.Stock,
+                    EnStock = p.Stock > 0,
                     ImagenPrincipal = p.Imagenes
                         .Where(i => i.EsPrincipal)
                         .Select(i => i.UrlImagen)
@@ -386,6 +398,91 @@ namespace WilliamAPI.Controllers
                     Cantidad = stock?.Cantidad ?? 0,
                     Estado = stock?.EstadoStock?.Estado ?? "Sin stock",
                     Disponible = (stock?.Cantidad ?? 0) > 0
+                }
+            });
+        }
+
+        // PUT /api/producto/{id}/stock (Admin - actualizar stock manualmente)
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{id:int}/stock")]
+        public async Task<IActionResult> ActualizarStock(int id, [FromBody] ActualizarStockDto dto)
+        {
+            var producto = await _db.Productos.FindAsync(id);
+            if (producto == null)
+                return NotFound(new { mensaje = "Producto no encontrado" });
+
+            // Validar que al menos uno de los campos esté presente
+            if (!dto.CantidadAbsoluta.HasValue && !dto.CantidadAjuste.HasValue)
+            {
+                return BadRequest(new { mensaje = "Debe proporcionar CantidadAbsoluta o CantidadAjuste" });
+            }
+
+            // No permitir ambos campos a la vez
+            if (dto.CantidadAbsoluta.HasValue && dto.CantidadAjuste.HasValue)
+            {
+                return BadRequest(new { mensaje = "Solo puede usar CantidadAbsoluta o CantidadAjuste, no ambos" });
+            }
+
+            int stockAnterior = producto.Stock;
+
+            // Actualizar stock según el tipo de operación
+            if (dto.CantidadAbsoluta.HasValue)
+            {
+                // Establecer stock directamente
+                if (dto.CantidadAbsoluta.Value < 0)
+                {
+                    return BadRequest(new { mensaje = "El stock no puede ser negativo" });
+                }
+                producto.Stock = dto.CantidadAbsoluta.Value;
+            }
+            else if (dto.CantidadAjuste.HasValue)
+            {
+                // Ajustar stock (agregar o restar)
+                int nuevoStock = producto.Stock + dto.CantidadAjuste.Value;
+                if (nuevoStock < 0)
+                {
+                    return BadRequest(new { mensaje = "El ajuste resultaría en stock negativo" });
+                }
+                producto.Stock = nuevoStock;
+            }
+
+            await _db.SaveChangesAsync();
+
+            // Registrar en auditoría si existe tabla
+            try
+            {
+                var userId = User.FindFirst("id")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (int.TryParse(userId, out var idUsuario))
+                {
+                    var auditoria = new Auditoria
+                    {
+                        IdUsuario = idUsuario,
+                        Fecha = DateTime.UtcNow,
+                        Accion = $"Actualización manual de stock: {stockAnterior} → {producto.Stock}",
+                        TablaAfectada = "Producto",
+                        ValorAnterior = stockAnterior.ToString(),
+                        ValorNuevo = producto.Stock.ToString()
+                    };
+                    _db.Auditorias.Add(auditoria);
+                    await _db.SaveChangesAsync();
+                }
+            }
+            catch
+            {
+                // Si falla la auditoría, continuar (no es crítico)
+            }
+
+            return Ok(new
+            {
+                mensaje = "Stock actualizado exitosamente",
+                stockAnterior = stockAnterior,
+                stockNuevo = producto.Stock,
+                response = new
+                {
+                    producto.IdProducto,
+                    producto.Nombre,
+                    producto.Stock,
+                    EnStock = producto.Stock > 0
                 }
             });
         }

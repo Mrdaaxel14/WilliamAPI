@@ -74,14 +74,9 @@ namespace WilliamAPI.Controllers
             {
                 if (det.Producto == null) continue;
 
-                var stock = await _db.Stocks
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.IdProducto == det.IdProducto);
-
-                if (stock == null || stock.Cantidad < det.Cantidad)
+                if (det.Producto.Stock < det.Cantidad)
                 {
-                    var disponible = stock?.Cantidad ?? 0;
-                    erroresStock.Add($"'{det.Producto.Descripcion}':  solicitado {det.Cantidad}, disponible {disponible}");
+                    erroresStock.Add($"'{det.Producto.Nombre}': solicitado {det.Cantidad}, disponible {det.Producto.Stock}");
                 }
             }
 
@@ -131,24 +126,8 @@ namespace WilliamAPI.Controllers
                     PrecioUnitario = precio
                 });
 
-                // Descontar stock
-                var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.IdProducto == det.IdProducto);
-                if (stock != null)
-                {
-                    stock.Cantidad -= det.Cantidad;
-
-                    // Actualizar estado de stock
-                    if (stock.Cantidad <= 0)
-                    {
-                        var estadoSinStock = await _db.EstadosStock.FirstOrDefaultAsync(e => e.Estado == "Sin stock");
-                        stock.IdEstadoStock = estadoSinStock?.IdEstadoStock;
-                    }
-                    else if (stock.Cantidad <= 5)
-                    {
-                        var estadoBajo = await _db.EstadosStock.FirstOrDefaultAsync(e => e.Estado == "Bajo");
-                        stock.IdEstadoStock = estadoBajo?.IdEstadoStock;
-                    }
-                }
+                // Descontar stock del producto
+                det.Producto.Stock -= det.Cantidad;
             }
 
             pedido.Total = total;
@@ -319,22 +298,10 @@ namespace WilliamAPI.Controllers
             // Restaurar stock
             foreach (var det in pedido.Detalles)
             {
-                var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.IdProducto == det.IdProducto);
-                if (stock != null)
+                var producto = await _db.Productos.FindAsync(det.IdProducto);
+                if (producto != null)
                 {
-                    stock.Cantidad += det.Cantidad;
-
-                    // Actualizar estado de stock
-                    if (stock.Cantidad > 5)
-                    {
-                        var estadoEnStock = await _db.EstadosStock.FirstOrDefaultAsync(e => e.Estado == "En stock");
-                        stock.IdEstadoStock = estadoEnStock?.IdEstadoStock;
-                    }
-                    else if (stock.Cantidad > 0)
-                    {
-                        var estadoBajo = await _db.EstadosStock.FirstOrDefaultAsync(e => e.Estado == "Bajo");
-                        stock.IdEstadoStock = estadoBajo?.IdEstadoStock;
-                    }
+                    producto.Stock += det.Cantidad;
                 }
             }
 
@@ -393,18 +360,66 @@ namespace WilliamAPI.Controllers
         [HttpPut("{id}/estado")]
         public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoPedidoDto dto)
         {
-            var pedido = await _db.Pedidos.FindAsync(id);
+            var pedido = await _db.Pedidos
+                .Include(p => p.EstadoPedido)
+                .Include(p => p.Detalles)
+                .FirstOrDefaultAsync(p => p.IdPedido == id);
+
             if (pedido == null)
                 return NotFound(new { mensaje = "Pedido no encontrado" });
 
+            // Guardar estado anterior para determinar si hay que restaurar stock
+            var estadoAnterior = pedido.EstadoPedido?.Estado;
+
+            // Actualizar estado del pedido
             if (dto.IdEstadoPedido.HasValue)
             {
-                var estado = await _db.EstadosPedido.FindAsync(dto.IdEstadoPedido.Value);
-                if (estado == null)
+                var nuevoEstado = await _db.EstadosPedido.FindAsync(dto.IdEstadoPedido.Value);
+                if (nuevoEstado == null)
                     return BadRequest(new { mensaje = "Estado de pedido no válido" });
+
+                // Lógica de restauración de stock al cambiar a Cancelado o Devuelto
+                if ((nuevoEstado.Estado == "Cancelado" || nuevoEstado.Estado == "Devuelto") 
+                    && estadoAnterior != "Cancelado" && estadoAnterior != "Devuelto")
+                {
+                    // Restaurar stock
+                    foreach (var det in pedido.Detalles)
+                    {
+                        var producto = await _db.Productos.FindAsync(det.IdProducto);
+                        if (producto != null)
+                        {
+                            producto.Stock += det.Cantidad;
+                        }
+                    }
+
+                    // Registrar en auditoría
+                    try
+                    {
+                        var userId = User.FindFirst("id")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                        if (int.TryParse(userId, out var idUsuario))
+                        {
+                            var auditoria = new Auditoria
+                            {
+                                IdUsuario = idUsuario,
+                                Fecha = DateTime.UtcNow,
+                                Accion = $"Pedido {id} cambió a {nuevoEstado.Estado} - Stock restaurado",
+                                TablaAfectada = "Pedido",
+                                ValorAnterior = estadoAnterior,
+                                ValorNuevo = nuevoEstado.Estado
+                            };
+                            _db.Auditorias.Add(auditoria);
+                        }
+                    }
+                    catch
+                    {
+                        // Si falla la auditoría, continuar
+                    }
+                }
+
                 pedido.IdEstadoPedido = dto.IdEstadoPedido.Value;
             }
 
+            // Actualizar estado del pago
             if (dto.IdEstadoPago.HasValue)
             {
                 var estado = await _db.EstadosPago.FindAsync(dto.IdEstadoPago.Value);

@@ -7,9 +7,11 @@ namespace WilliamAPI.Models
         public int IdProducto { get; set; }
         public string? CodigoBarra { get; set; }
         public string Descripcion { get; set; } = null!;
+        public string Nombre { get; set; } = null!;
         public string? Marca { get; set; }
         public int? IdCategoria { get; set; }
         public decimal Precio { get; set; }
+        public int Stock { get; set; } = 0;
 
         [JsonIgnore]
         public Categoria? Categoria { get; set; }
