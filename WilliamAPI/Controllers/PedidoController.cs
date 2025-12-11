@@ -74,14 +74,9 @@ namespace WilliamAPI.Controllers
             {
                 if (det.Producto == null) continue;
 
-                var stock = await _db.Stocks
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.IdProducto == det.IdProducto);
-
-                if (stock == null || stock.Cantidad < det.Cantidad)
+                if (det.Producto.Stock < det.Cantidad)
                 {
-                    var disponible = stock?.Cantidad ?? 0;
-                    erroresStock.Add($"'{det.Producto.Descripcion}':  solicitado {det.Cantidad}, disponible {disponible}");
+                    erroresStock.Add($"'{det.Producto.Nombre}': solicitado {det.Cantidad}, disponible {det.Producto.Stock}");
                 }
             }
 
@@ -131,23 +126,11 @@ namespace WilliamAPI.Controllers
                     PrecioUnitario = precio
                 });
 
-                // Descontar stock
-                var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.IdProducto == det.IdProducto);
-                if (stock != null)
+                // Descontar stock del producto
+                var productoParaActualizar = await _db.Productos.FindAsync(det.IdProducto);
+                if (productoParaActualizar != null)
                 {
-                    stock.Cantidad -= det.Cantidad;
-
-                    // Actualizar estado de stock
-                    if (stock.Cantidad <= 0)
-                    {
-                        var estadoSinStock = await _db.EstadosStock.FirstOrDefaultAsync(e => e.Estado == "Sin stock");
-                        stock.IdEstadoStock = estadoSinStock?.IdEstadoStock;
-                    }
-                    else if (stock.Cantidad <= 5)
-                    {
-                        var estadoBajo = await _db.EstadosStock.FirstOrDefaultAsync(e => e.Estado == "Bajo");
-                        stock.IdEstadoStock = estadoBajo?.IdEstadoStock;
-                    }
+                    productoParaActualizar.Stock -= det.Cantidad;
                 }
             }
 
@@ -319,22 +302,10 @@ namespace WilliamAPI.Controllers
             // Restaurar stock
             foreach (var det in pedido.Detalles)
             {
-                var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.IdProducto == det.IdProducto);
-                if (stock != null)
+                var producto = await _db.Productos.FindAsync(det.IdProducto);
+                if (producto != null)
                 {
-                    stock.Cantidad += det.Cantidad;
-
-                    // Actualizar estado de stock
-                    if (stock.Cantidad > 5)
-                    {
-                        var estadoEnStock = await _db.EstadosStock.FirstOrDefaultAsync(e => e.Estado == "En stock");
-                        stock.IdEstadoStock = estadoEnStock?.IdEstadoStock;
-                    }
-                    else if (stock.Cantidad > 0)
-                    {
-                        var estadoBajo = await _db.EstadosStock.FirstOrDefaultAsync(e => e.Estado == "Bajo");
-                        stock.IdEstadoStock = estadoBajo?.IdEstadoStock;
-                    }
+                    producto.Stock += det.Cantidad;
                 }
             }
 
@@ -393,29 +364,125 @@ namespace WilliamAPI.Controllers
         [HttpPut("{id}/estado")]
         public async Task<IActionResult> CambiarEstado(int id, [FromBody] CambiarEstadoPedidoDto dto)
         {
-            var pedido = await _db.Pedidos.FindAsync(id);
-            if (pedido == null)
-                return NotFound(new { mensaje = "Pedido no encontrado" });
-
-            if (dto.IdEstadoPedido.HasValue)
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
             {
-                var estado = await _db.EstadosPedido.FindAsync(dto.IdEstadoPedido.Value);
-                if (estado == null)
-                    return BadRequest(new { mensaje = "Estado de pedido no válido" });
-                pedido.IdEstadoPedido = dto.IdEstadoPedido.Value;
-            }
+                var pedido = await _db.Pedidos
+                    .Include(p => p.Detalles)
+                    .Include(p => p.EstadoPedido)
+                    .FirstOrDefaultAsync(p => p.IdPedido == id);
 
-            if (dto.IdEstadoPago.HasValue)
+                if (pedido == null)
+                    return NotFound(new { mensaje = "Pedido no encontrado" });
+
+                // Obtener estados de cancelado y devuelto
+                var estadoCancelado = await _db.EstadosPedido.FirstOrDefaultAsync(e => e.Estado == "Cancelado");
+                var estadoDevuelto = await _db.EstadosPedido.FirstOrDefaultAsync(e => e.Estado == "Devuelto");
+                var estadosCanceladosIds = new List<int>();
+                if (estadoCancelado != null) estadosCanceladosIds.Add(estadoCancelado.IdEstadoPedido);
+                if (estadoDevuelto != null) estadosCanceladosIds.Add(estadoDevuelto.IdEstadoPedido);
+
+                var estabaAnulado = estadosCanceladosIds.Contains(pedido.IdEstadoPedido ?? 0);
+
+                // Actualizar estado de pedido
+                if (dto.IdEstadoPedido.HasValue)
+                {
+                    var estado = await _db.EstadosPedido.FindAsync(dto.IdEstadoPedido.Value);
+                    if (estado == null)
+                        return BadRequest(new { mensaje = "Estado de pedido no válido" });
+
+                    var seAnula = estadosCanceladosIds.Contains(dto.IdEstadoPedido.Value);
+
+                    // Lógica de gestión de stock según cambio de estado
+                    if (!estabaAnulado && seAnula)
+                    {
+                        // Devolver stock (el pedido se está cancelando o devolviendo)
+                        foreach (var det in pedido.Detalles)
+                        {
+                            var producto = await _db.Productos.FindAsync(det.IdProducto);
+                            if (producto != null)
+                            {
+                                producto.Stock += det.Cantidad;
+                            }
+                        }
+
+                        // Registrar en auditoría
+                        var idUsuario = User.FindFirst("id")?.Value ?? "0";
+                        if (int.TryParse(idUsuario, out var userId))
+                        {
+                            var auditoria = new Auditoria
+                            {
+                                IdUsuario = userId,
+                                Fecha = DateTime.UtcNow,
+                                Accion = $"Cambio de estado del pedido {id} a {estado.Estado} - Stock devuelto",
+                                TablaAfectada = "Pedido",
+                                ValorAnterior = pedido.EstadoPedido?.Estado ?? "Desconocido",
+                                ValorNuevo = estado.Estado
+                            };
+                            _db.Auditorias.Add(auditoria);
+                        }
+                    }
+                    else if (estabaAnulado && !seAnula)
+                    {
+                        // Volver a restar stock (se está reactivando el pedido)
+                        foreach (var det in pedido.Detalles)
+                        {
+                            var producto = await _db.Productos.FindAsync(det.IdProducto);
+                            if (producto != null)
+                            {
+                                if (producto.Stock < det.Cantidad)
+                                {
+                                    await transaction.RollbackAsync();
+                                    return BadRequest(new
+                                    {
+                                        mensaje = "No hay stock suficiente para reactivar el pedido",
+                                        producto = producto.Nombre,
+                                        stockDisponible = producto.Stock,
+                                        cantidadNecesaria = det.Cantidad
+                                    });
+                                }
+                                producto.Stock -= det.Cantidad;
+                            }
+                        }
+
+                        // Registrar en auditoría
+                        var idUsuario = User.FindFirst("id")?.Value ?? "0";
+                        if (int.TryParse(idUsuario, out var userId))
+                        {
+                            var auditoria = new Auditoria
+                            {
+                                IdUsuario = userId,
+                                Fecha = DateTime.UtcNow,
+                                Accion = $"Cambio de estado del pedido {id} a {estado.Estado} - Stock descontado",
+                                TablaAfectada = "Pedido",
+                                ValorAnterior = pedido.EstadoPedido?.Estado ?? "Desconocido",
+                                ValorNuevo = estado.Estado
+                            };
+                            _db.Auditorias.Add(auditoria);
+                        }
+                    }
+
+                    pedido.IdEstadoPedido = dto.IdEstadoPedido.Value;
+                }
+
+                if (dto.IdEstadoPago.HasValue)
+                {
+                    var estado = await _db.EstadosPago.FindAsync(dto.IdEstadoPago.Value);
+                    if (estado == null)
+                        return BadRequest(new { mensaje = "Estado de pago no válido" });
+                    pedido.IdEstadoPago = dto.IdEstadoPago.Value;
+                }
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new { mensaje = "Estado actualizado exitosamente" });
+            }
+            catch (Exception ex)
             {
-                var estado = await _db.EstadosPago.FindAsync(dto.IdEstadoPago.Value);
-                if (estado == null)
-                    return BadRequest(new { mensaje = "Estado de pago no válido" });
-                pedido.IdEstadoPago = dto.IdEstadoPago.Value;
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { mensaje = "Error al actualizar estado", error = ex.Message });
             }
-
-            await _db.SaveChangesAsync();
-
-            return Ok(new { mensaje = "Estado actualizado exitosamente" });
         }
     }
 }

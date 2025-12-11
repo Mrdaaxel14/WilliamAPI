@@ -79,6 +79,8 @@ namespace WilliamAPI.Data
                 entity.Property(p => p.Descripcion).HasMaxLength(100).IsRequired();
                 entity.Property(p => p.Marca).HasMaxLength(50);
                 entity.Property(p => p.Precio).HasColumnType("decimal(10,2)").IsRequired();
+                entity.Property(p => p.Nombre).HasMaxLength(150).IsRequired();
+                entity.Property(p => p.Stock).HasDefaultValue(0);
 
                 entity.HasOne(p => p.Categoria)
                       .WithMany(c => c.Productos)

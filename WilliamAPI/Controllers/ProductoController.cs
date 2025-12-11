@@ -29,6 +29,8 @@ namespace WilliamAPI.Controllers
                     Marca = p.Marca,
                     IdCategoria = p.IdCategoria,
                     Precio = p.Precio,
+                    Nombre = p.Nombre,
+                    Stock = p.Stock,
                     ImagenPrincipal = p.Imagenes
                         .Where(i => i.EsPrincipal)
                         .Select(i => i.UrlImagen)
@@ -61,6 +63,8 @@ namespace WilliamAPI.Controllers
                     IdCategoria = p.IdCategoria,
                     CategoriaNombre = p.Categoria != null ? p.Categoria.Descripcion : null,
                     Precio = p.Precio,
+                    Nombre = p.Nombre,
+                    Stock = p.Stock,
                     ImagenPrincipal = p.Imagenes
                         .Where(i => i.EsPrincipal)
                         .Select(i => i.UrlImagen)
@@ -94,7 +98,9 @@ namespace WilliamAPI.Controllers
                 Descripcion = dto.Descripcion,
                 Marca = dto.Marca,
                 IdCategoria = dto.IdCategoria,
-                Precio = dto.Precio
+                Precio = dto.Precio,
+                Nombre = dto.Nombre,
+                Stock = dto.Stock
             };
 
             _db.Productos.Add(producto);
@@ -117,6 +123,7 @@ namespace WilliamAPI.Controllers
             p.Marca = dto.Marca ?? p.Marca;
             p.IdCategoria = dto.IdCategoria ?? p.IdCategoria;
             p.Precio = dto.Precio != 0 ? dto.Precio : p.Precio;
+            p.Nombre = dto.Nombre ?? p.Nombre;
 
             await _db.SaveChangesAsync();
             return Ok(new { mensaje = "ok" });
@@ -323,6 +330,8 @@ namespace WilliamAPI.Controllers
                     Marca = p.Marca,
                     IdCategoria = p.IdCategoria,
                     Precio = p.Precio,
+                    Nombre = p.Nombre,
+                    Stock = p.Stock,
                     ImagenPrincipal = p.Imagenes
                         .Where(i => i.EsPrincipal)
                         .Select(i => i.UrlImagen)
@@ -388,6 +397,54 @@ namespace WilliamAPI.Controllers
                     Disponible = (stock?.Cantidad ?? 0) > 0
                 }
             });
+        }
+
+        // PUT /api/producto/{id}/stock (Admin - actualizar stock)
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{id:int}/stock")]
+        public async Task<IActionResult> ActualizarStock(int id, [FromBody] ActualizarStockDto dto)
+        {
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var producto = await _db.Productos.FindAsync(id);
+                if (producto == null)
+                    return NotFound(new { mensaje = "Producto no encontrado" });
+
+                var stockAnterior = producto.Stock;
+                producto.Stock = dto.Stock;
+
+                // Registrar en auditoría
+                var idUsuario = User.FindFirst("id")?.Value ?? "0";
+                if (int.TryParse(idUsuario, out var userId))
+                {
+                    var auditoria = new Auditoria
+                    {
+                        IdUsuario = userId,
+                        Fecha = DateTime.UtcNow,
+                        Accion = $"Actualización manual de stock del producto {producto.Nombre}",
+                        TablaAfectada = "Producto",
+                        ValorAnterior = stockAnterior.ToString(),
+                        ValorNuevo = dto.Stock.ToString()
+                    };
+                    _db.Auditorias.Add(auditoria);
+                }
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    mensaje = "Stock actualizado exitosamente",
+                    stockAnterior,
+                    stockNuevo = producto.Stock
+                });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { mensaje = "Error al actualizar stock", error = ex.Message });
+            }
         }
     }
 }
